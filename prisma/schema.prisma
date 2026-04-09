@@ -1,0 +1,65 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Portfolio {
+  id     String  @id @default(cuid())
+  name   String  @default("Main")
+  assets Asset[]
+  watchlists Watchlist[]
+}
+
+model Asset {
+  id          String   @id @default(cuid())
+  portfolioId String
+  type        String   // STOCK, CRYPTO, MF, CASH, REAL_ESTATE, GOLD, OTHER
+  symbol      String   // e.g., 'AAPL', 'RELIANCE.NS', 'bitcoin', 'CASH_INR'
+  name        String
+  currency    String   @default("INR") // Asset's native trading currency
+  holdings    Float    @default(0) // Total quantity held
+  averagePrice Float   @default(0) // Weighted average buy price
+  customValue Float?   // For manual assets like real estate or custom cash
+  
+  transactions Transaction[]
+  alerts       Alert[]
+  portfolio    Portfolio     @relation(fields: [portfolioId], references: [id])
+
+  @@unique([portfolioId, symbol])
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  assetId     String
+  type        String   // BUY, SELL
+  quantity    Float
+  price       Float    // Price per unit in asset's native currency AT the time of transacting
+  date        DateTime @default(now())
+  
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+model Watchlist {
+  id          String   @id @default(cuid())
+  portfolioId String
+  type        String   // STOCK, CRYPTO, MF
+  symbol      String
+  name        String
+  currency    String   @default("INR")
+  
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id])
+}
+
+model Alert {
+  id          String   @id @default(cuid())
+  assetId     String
+  type        String   // PRICE_ABOVE, PRICE_BELOW, PERCENT_CHANGE
+  targetValue Float
+  isActive    Boolean  @default(true)
+  
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0f172a; /* slate-900 */
+  --foreground: #f8fafc; /* slate-50 */
+  --card: #1e293b; /* slate-800 */
+  --card-foreground: #f8fafc;
+  --border: #334155; /* slate-700 */
+  --primary: #3b82f6; /* blue-500 */
+  --primary-foreground: #ffffff;
+  --destructive: #ef4444; /* red-500 */
+  --destructive-foreground: #ffffff;
+  --success: #22c55e; /* green-500 */
+  --success-foreground: #ffffff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), sans-serif;
+  color-scheme: dark;
+}
+
+/* Base minimal scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569; /* slate-600 */
+}
