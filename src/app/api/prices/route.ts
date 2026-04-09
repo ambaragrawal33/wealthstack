@@ -14,17 +14,27 @@ export async function POST(req: Request) {
     // We always want to fetch USD-INR rate
     yahooSymbols.push('INR=X');
 
-    // Fetch concurrently
-    const [cryptoData, yahooData] = await Promise.all([
-      fetchCryptoData(cryptoIds),
-      yahooSymbols.length > 0 ? yahooFinance.quote(yahooSymbols) : Promise.resolve([])
-    ]);
+    // Fetch Crypto normally
+    const cryptoData = await fetchCryptoData(cryptoIds);
+
+    // Fetch Yahoo individually to prevent single-ticker failures crashing the whole batch
+    const yahooResults = await Promise.allSettled(
+        yahooSymbols.map(sym => (yahooFinance.quote(sym) as Promise<any>).catch(e => {
+            console.warn(`Failed to fetch quote for ${sym}`);
+            return null;
+        }))
+    );
+    
+    // Extract successful quotes
+    const yahooArray: any[] = yahooResults
+        .filter(r => r.status === 'fulfilled')
+        .map(r => (r as PromiseFulfilledResult<any>).value)
+        .filter(val => val !== null);
 
     let usdInrRate = 83.5; // Default fallback
     const prices: Record<string, any> = {};
 
     // Process Yahoo Data
-    const yahooArray: any[] = Array.isArray(yahooData) ? yahooData : [yahooData];
     for (const quote of yahooArray) {
        if (!quote) continue;
        
