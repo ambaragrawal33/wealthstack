@@ -1,11 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
-:root {
+/* ── Dark mode (default) ─────────────────────────────── */
+:root, [data-theme="dark"] {
   --bg: #09090b;
   --bg-surface: #111113;
   --bg-elevated: #18181b;
-  --bg-hover: #1c1c1f;
   --border: #27272a;
   --border-subtle: #1f1f23;
   --text-primary: #fafafa;
@@ -14,7 +14,21 @@
   --green: #22c55e;
   --red: #ef4444;
   --accent: #3b82f6;
-  --accent-muted: rgba(59,130,246,0.12);
+}
+
+/* ── Light mode ──────────────────────────────────────── */
+[data-theme="light"] {
+  --bg: #ffffff;
+  --bg-surface: #f4f4f5;
+  --bg-elevated: #e4e4e7;
+  --border: #d4d4d8;
+  --border-subtle: #e4e4e7;
+  --text-primary: #09090b;
+  --text-secondary: #52525b;
+  --text-muted: #a1a1aa;
+  --green: #16a34a;
+  --red: #dc2626;
+  --accent: #2563eb;
 }
 
 @theme inline {
@@ -28,7 +42,6 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-
 html { height: 100%; }
 
 body {
@@ -38,18 +51,18 @@ body {
   -webkit-font-smoothing: antialiased;
   height: 100%;
   overflow: hidden;
+  transition: background-color 0.2s, color 0.2s;
 }
 
-/* Minimal scrollbars */
+/* Scrollbars */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-subtle); }
 
-/* Tabular numbers */
 .tabular { font-variant-numeric: tabular-nums; }
 
-/* Loading shimmer */
+/* Shimmer loader */
 @keyframes shimmer {
   0%   { background-position: -200% 0; }
   100% { background-position:  200% 0; }
@@ -59,9 +72,12 @@ body {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 4px;
+  display: inline-block;
+  min-height: 12px;
+  min-width: 40px;
 }
 
-/* Market strip scroll */
+/* Market strip */
 @keyframes scroll-left {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }

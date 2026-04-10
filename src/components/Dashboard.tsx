@@ -9,9 +9,11 @@ import { TransactionsTable } from "./views/TransactionsTable";
 import { PerformanceAnalytics } from "./views/PerformanceAnalytics";
 import { calcAssetCurrentValueINR, calcAsset24hChange } from "@/lib/portfolioEngine";
 import {
-  LayoutDashboard, ListOrdered, BarChart2, Plus, TrendingUp, TrendingDown,
-  ArrowUpRight, ArrowDownRight, RefreshCw, Settings, ChevronRight
+  LayoutDashboard, ListOrdered, BarChart2, Plus,
+  TrendingUp, TrendingDown, RefreshCw, Settings, ChevronRight,
+  Sun, Moon, Download, Clock, DollarSign
 } from "lucide-react";
+import { useTheme } from "./ThemeProvider";
 
 type Tab = "DASHBOARD" | "TRANSACTIONS" | "ANALYTICS" | "SETTINGS";
 
@@ -46,6 +48,8 @@ export function Dashboard() {
   const [tab, setTab] = useState<Tab>("DASHBOARD");
   const [syncing, setSyncing] = useState(false);
   const [showAddPanel, setShowAddPanel] = useState(false);
+  const [pollInterval, setPollInterval] = useState(15);
+  const { theme, toggle: toggleTheme } = useTheme();
 
   // Load portfolio
   useEffect(() => {
@@ -289,21 +293,107 @@ export function Dashboard() {
 
         {tab === "SETTINGS" && (
           <div className="p-6 max-w-lg">
-            <h2 className="text-sm font-semibold text-[#fafafa] mb-6">Settings</h2>
+            <h2 className="text-sm font-semibold mb-1" style={{ color: "var(--text-primary)" }}>Settings</h2>
+            <p className="text-xs mb-6" style={{ color: "var(--text-muted)" }}>Configure your Wealthstack preferences.</p>
             <div className="space-y-3">
-              {[
-                { label: "Export portfolio to CSV", sub: "Download all transactions and holdings" },
-                { label: "Currency display", sub: "Base currency: INR (Indian Rupee)" },
-                { label: "Price refresh interval", sub: "Currently: every 15 seconds" },
-              ].map(item => (
-                <div key={item.label} className="flex items-center justify-between p-4 bg-[#111113] border border-[#1f1f23] rounded-xl hover:border-[#27272a] transition-colors cursor-pointer group">
+
+              {/* Theme toggle */}
+              <div
+                className="flex items-center justify-between p-4 rounded-xl border transition-colors"
+                style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }}
+              >
+                <div className="flex items-center gap-3">
+                  {theme === "dark" ? <Moon className="w-4 h-4" style={{ color: "var(--text-muted)" }} /> : <Sun className="w-4 h-4" style={{ color: "var(--text-muted)" }} />}
                   <div>
-                    <p className="text-sm font-medium text-[#fafafa]">{item.label}</p>
-                    <p className="text-xs text-[#52525b] mt-0.5">{item.sub}</p>
+                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Appearance</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                      Currently: {theme === "dark" ? "Dark mode" : "Light mode"}
+                    </p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-[#3f3f46] group-hover:text-[#71717a] transition-colors" />
                 </div>
-              ))}
+                <button
+                  onClick={toggleTheme}
+                  className="px-4 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+                  style={{ backgroundColor: "var(--bg-elevated)", borderColor: "var(--border)", color: "var(--text-secondary)" }}
+                >
+                  Switch to {theme === "dark" ? "Light" : "Dark"}
+                </button>
+              </div>
+
+              {/* Refresh interval */}
+              <div
+                className="flex items-center justify-between p-4 rounded-xl border"
+                style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }}
+              >
+                <div className="flex items-center gap-3">
+                  <Clock className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Price Refresh Interval</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>How often live prices update</p>
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  {[10, 15, 30, 60].map(s => (
+                    <button
+                      key={s}
+                      onClick={() => setPollInterval(s)}
+                      className="px-2.5 py-1 rounded-md text-xs font-medium border transition-colors"
+                      style={{
+                        backgroundColor: pollInterval === s ? "var(--accent)" : "var(--bg-elevated)",
+                        borderColor: pollInterval === s ? "var(--accent)" : "var(--border)",
+                        color: pollInterval === s ? "#fff" : "var(--text-secondary)",
+                      }}
+                    >
+                      {s}s
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Currency info */}
+              <div
+                className="flex items-center justify-between p-4 rounded-xl border"
+                style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }}
+              >
+                <div className="flex items-center gap-3">
+                  <DollarSign className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Base Currency</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>All values shown in Indian Rupee (₹ INR)</p>
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-lg text-xs font-bold border" style={{ backgroundColor: "var(--bg-elevated)", borderColor: "var(--border)", color: "var(--text-primary)" }}>₹ INR</span>
+              </div>
+
+              {/* Export */}
+              <div
+                className="flex items-center justify-between p-4 rounded-xl border transition-colors cursor-pointer group"
+                style={{ backgroundColor: "var(--bg-surface)", borderColor: "var(--border-subtle)" }}
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/portfolio");
+                    const data = await res.json();
+                    const rows = [["Symbol","Name","Type","Holdings","Avg Price","Currency"]];
+                    data.forEach((a: any) => rows.push([a.symbol, a.name, a.type, a.holdings, a.averagePrice, a.currency]));
+                    const csv = rows.map(r => r.join(",")).join("\n");
+                    const blob = new Blob([csv], { type: "text/csv" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url; link.download = "wealthstack_portfolio.csv"; link.click();
+                    URL.revokeObjectURL(url);
+                  } catch {}
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <Download className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Export to CSV</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Download all holdings as a spreadsheet</p>
+                  </div>
+                </div>
+                <Download className="w-4 h-4 transition-colors" style={{ color: "var(--text-muted)" }} />
+              </div>
+
             </div>
           </div>
         )}
