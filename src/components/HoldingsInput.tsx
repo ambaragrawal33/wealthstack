@@ -4,12 +4,12 @@ import { useState, useEffect, useRef } from "react";
 import { usePortfolioStore } from "@/store/usePortfolioStore";
 import {
   HandCoins, CheckCircle2, XCircle, Search,
-  Pencil, Trash2, Check, X, Loader2, TrendingUp, TrendingDown
+  Pencil, Trash2, Check, X, Loader2, TrendingUp, TrendingDown, ChevronDown
 } from "lucide-react";
 
 const MANUAL_TYPES = ['CASH', 'REAL_ESTATE', 'GOLD', 'OTHER'];
 
-interface PreviewData {
+interface AssetData {
   symbol: string;
   name: string;
   currency: string;
@@ -28,15 +28,19 @@ export function HoldingsInput() {
 
   // Form state
   const [type, setType] = useState("CRYPTO");
-  const [symbol, setSymbol] = useState("");
+  const [query, setQuery] = useState("");         // what user types
+  const [selectedAsset, setSelectedAsset] = useState<AssetData | null>(null); // confirmed selection
   const [quantity, setQuantity] = useState("");
   const [manualPrice, setManualPrice] = useState("");
   const [transType, setTransType] = useState("BUY");
   const [submitting, setSubmitting] = useState(false);
 
-  // Live search preview
-  const [preview, setPreview] = useState<{ loading: boolean; data?: PreviewData; error?: string } | null>(null);
+  // Search
+  const [searchState, setSearchState] = useState<{ loading: boolean; data?: AssetData; error?: string } | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Edit state
   const [editState, setEditState] = useState<EditState | null>(null);
@@ -44,60 +48,91 @@ export function HoldingsInput() {
 
   const isManual = MANUAL_TYPES.includes(type);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+        inputRef.current && !inputRef.current.contains(e.target as Node)
+      ) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   // Debounced live search
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    if (!symbol.trim() || isManual) {
-      setPreview(null);
+    if (!query.trim() || isManual) {
+      setSearchState(null);
+      setShowDropdown(false);
       return;
     }
 
-    setPreview({ loading: true });
+    setSearchState({ loading: true });
+    setShowDropdown(true);
 
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(symbol.trim())}&type=${type}`);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}&type=${type}`);
         const json = await res.json();
-
         if (!res.ok) {
-          setPreview({ loading: false, error: json.error || "Not found" });
-          return;
+          setSearchState({ loading: false, error: json.error || "Not found" });
+        } else {
+          setSearchState({ loading: false, data: json });
         }
-
-        setPreview({ loading: false, data: json });
       } catch {
-        setPreview({ loading: false, error: "Network error" });
+        setSearchState({ loading: false, error: "Network error" });
       }
-    }, 600);
+    }, 500);
 
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [symbol, type, isManual]);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query, type, isManual]);
+
+  const handleSelectAsset = (asset: AssetData) => {
+    setSelectedAsset(asset);
+    setQuery(asset.name);          // fill input with name
+    setShowDropdown(false);
+    setSearchState(null);
+    // auto-focus quantity input
+    setTimeout(() => document.getElementById('qty-input')?.focus(), 50);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedAsset(null);
+    setQuery("");
+    setSearchState(null);
+    setShowDropdown(false);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
 
   const handleTypeChange = (newType: string) => {
     setType(newType);
-    setSymbol("");
-    setPreview(null);
+    setQuery("");
+    setSelectedAsset(null);
+    setSearchState(null);
+    setShowDropdown(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    let finalSymbol = symbol.trim();
-    let finalName = symbol.trim();
+    let finalSymbol = query.trim();
+    let finalName = query.trim();
     let finalPrice = manualPrice;
-    const currency = isManual ? "INR" : (preview?.data?.currency || "USD");
+    const currency = isManual ? "INR" : (selectedAsset?.currency || "USD");
 
     if (!isManual) {
-      if (!preview?.data) {
-        alert("Please wait for the live market validation to complete.");
+      if (!selectedAsset) {
+        alert("Please search and select an asset from the dropdown first.");
         return;
       }
-      finalSymbol = preview.data.symbol;
-      finalName = preview.data.name;
-      finalPrice = preview.data.price.toString();
+      finalSymbol = selectedAsset.symbol;
+      finalName = selectedAsset.name;
+      finalPrice = selectedAsset.price.toString();
     }
 
     if (!finalSymbol || !quantity || !finalPrice) return;
@@ -120,10 +155,11 @@ export function HoldingsInput() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setAssets(data);
-      setSymbol("");
+      setQuery("");
+      setSelectedAsset(null);
       setQuantity("");
       setManualPrice("");
-      setPreview(null);
+      setSearchState(null);
     } catch (err: any) {
       alert("Failed to add: " + err.message);
     } finally {
@@ -163,7 +199,8 @@ export function HoldingsInput() {
     }
   };
 
-  const canSubmit = !submitting && !preview?.loading && (isManual || !!preview?.data) && !!quantity;
+  const canSubmit = !submitting && !!quantity &&
+    (isManual ? !!manualPrice && !!query.trim() : !!selectedAsset);
 
   return (
     <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 backdrop-blur-md space-y-6">
@@ -183,7 +220,7 @@ export function HoldingsInput() {
               className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500"
             >
               <option value="CRYPTO">🪙 Crypto</option>
-              <option value="STOCK">🇮🇳 Indian Stock</option>
+              <option value="STOCK">🇮🇳 Indian Stock (NSE/BSE)</option>
               <option value="US_STOCK">🇺🇸 US Stock / ETF</option>
               <option value="MF">📈 Mutual Fund</option>
               <option value="CASH">💵 Cash / Bank</option>
@@ -205,62 +242,126 @@ export function HoldingsInput() {
           </div>
         </div>
 
-        {/* Ticker input */}
-        <div>
+        {/* Search / Ticker input */}
+        <div className="relative">
           <label className="text-xs text-slate-400 mb-1 block">
-            {isManual ? "Label / Description" : "Ticker / Name (e.g. MSFT, bitcoin, RELIANCE.NS)"}
+            {isManual ? "Label / Description" : "Search by name or ticker"}
           </label>
-          <input
-            type="text"
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            placeholder={
-              type === "CRYPTO" ? "bitcoin, ethereum, solana" :
-              type === "STOCK" ? "RELIANCE.NS, INFY.NS, TCS.NS" :
-              type === "US_STOCK" ? "AAPL, MSFT, SPY" :
-              type === "MF" ? "0P0000XVMK.BO" :
-              "Cash savings, SBI account..."
-            }
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500 transition-colors"
-            required
-          />
 
-          {/* Live preview card */}
-          {!isManual && preview && (
-            <div className="mt-2 p-3 rounded-xl border bg-slate-900/90 flex items-center justify-between min-h-[52px]">
-              {preview.loading ? (
-                <div className="flex items-center gap-2 text-slate-400 text-sm animate-pulse w-full">
+          {/* Input wrapper */}
+          <div className={`flex items-center gap-2 bg-slate-900 border rounded-lg px-3 py-2 transition-colors ${
+            selectedAsset ? "border-emerald-500/60" : "border-slate-700 focus-within:border-violet-500"
+          }`}>
+            {selectedAsset ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <Search className="w-4 h-4 text-slate-500 shrink-0" />
+            )}
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                if (selectedAsset) setSelectedAsset(null); // clear selection when user types again
+              }}
+              onFocus={() => {
+                if (!selectedAsset && searchState?.data) setShowDropdown(true);
+              }}
+              placeholder={
+                type === "CRYPTO" ? "bitcoin, ethereum, solana..." :
+                type === "STOCK" ? "Reliance, Infosys, or RELIANCE.NS..." :
+                type === "US_STOCK" ? "Apple, Microsoft, or AAPL, SPY..." :
+                type === "MF" ? "Search fund name or code..." :
+                "Cash savings, SBI account..."
+              }
+              className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-600 focus:outline-none min-w-0"
+            />
+            {/* Loading spinner / clear button */}
+            {searchState?.loading && <Loader2 className="w-4 h-4 text-slate-400 animate-spin shrink-0" />}
+            {selectedAsset && (
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                className="text-slate-500 hover:text-slate-300 shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Dropdown result */}
+          {showDropdown && !isManual && (
+            <div
+              ref={dropdownRef}
+              className="absolute z-50 top-full mt-1 left-0 right-0 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-xl"
+            >
+              {searchState?.loading && (
+                <div className="flex items-center gap-2 px-4 py-3 text-sm text-slate-400">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Searching live markets...
                 </div>
-              ) : preview.error ? (
-                <div className="flex items-center gap-2 text-red-400 text-sm">
-                  <XCircle className="w-4 h-4 shrink-0" />
-                  <span>{preview.error}</span>
+              )}
+              {searchState?.error && (
+                <div className="flex items-center gap-2 px-4 py-3 text-sm text-red-400">
+                  <XCircle className="w-4 h-4" />
+                  {searchState.error} — try a ticker like MSFT or RELIANCE.NS
                 </div>
-              ) : preview.data ? (
-                <>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              )}
+              {searchState?.data && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectAsset(searchState.data!)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-violet-600/20 transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center gap-3 text-left">
+                    <div className="w-8 h-8 rounded-lg bg-violet-600/20 flex items-center justify-center text-xs font-bold text-violet-300 shrink-0">
+                      {searchState.data.symbol.slice(0, 2).toUpperCase()}
+                    </div>
                     <div>
-                      <p className="text-slate-100 font-semibold text-sm leading-tight">{preview.data.name}</p>
-                      <p className="text-slate-500 text-xs">{preview.data.symbol.toUpperCase()}</p>
+                      <p className="text-slate-100 font-semibold text-sm group-hover:text-white">
+                        {searchState.data.name}
+                      </p>
+                      <p className="text-slate-500 text-xs">
+                        {searchState.data.symbol.toUpperCase()} · Live data
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0 ml-3">
                     <p className="text-slate-100 font-bold text-sm">
-                      {preview.data.currency === "INR" ? "₹" : "$"}
-                      {preview.data.price.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                      {searchState.data.currency === "INR" ? "₹" : "$"}
+                      {searchState.data.price.toLocaleString(undefined, { maximumFractionDigits: 4 })}
                     </p>
-                    <p className={`text-xs font-medium flex items-center justify-end gap-0.5 ${preview.data.change24h >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                      {preview.data.change24h >= 0
+                    <p className={`text-xs font-medium flex items-center justify-end gap-0.5 ${
+                      searchState.data.change24h >= 0 ? "text-emerald-400" : "text-red-400"
+                    }`}>
+                      {searchState.data.change24h >= 0
                         ? <TrendingUp className="w-3 h-3" />
                         : <TrendingDown className="w-3 h-3" />}
-                      {Math.abs(preview.data.change24h).toFixed(2)}%
+                      {Math.abs(searchState.data.change24h).toFixed(2)}%
                     </p>
                   </div>
-                </>
-              ) : null}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Selected asset chip */}
+          {selectedAsset && (
+            <div className="mt-2 flex items-center justify-between bg-emerald-950/40 border border-emerald-500/30 rounded-lg px-3 py-2">
+              <div>
+                <span className="text-emerald-300 font-semibold text-sm">{selectedAsset.name}</span>
+                <span className="text-slate-500 text-xs ml-2">{selectedAsset.symbol.toUpperCase()}</span>
+              </div>
+              <div className="text-right">
+                <span className="text-emerald-200 font-bold text-sm">
+                  {selectedAsset.currency === "INR" ? "₹" : "$"}
+                  {selectedAsset.price.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                </span>
+                <span className={`ml-2 text-xs font-medium ${selectedAsset.change24h >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  {selectedAsset.change24h >= 0 ? "+" : ""}{selectedAsset.change24h.toFixed(2)}%
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -272,6 +373,7 @@ export function HoldingsInput() {
               {isManual ? "Quantity / Units" : "Quantity / Shares"}
             </label>
             <input
+              id="qty-input"
               type="number"
               step="any"
               min="0"
@@ -297,12 +399,24 @@ export function HoldingsInput() {
           )}
         </div>
 
+        {/* Hint for market assets */}
+        {!isManual && !selectedAsset && (
+          <p className="text-xs text-slate-500 -mt-1">
+            Search and click a result above to select the asset, then enter quantity.
+          </p>
+        )}
+
         <button
           type="submit"
           disabled={!canSubmit}
           className="w-full py-2.5 rounded-lg text-sm font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Adding...</> : "Add to Portfolio"}
+          {submitting
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> Adding...</>
+            : selectedAsset
+            ? `Add ${selectedAsset.name} →`
+            : "Add to Portfolio"
+          }
         </button>
       </form>
 
@@ -316,13 +430,15 @@ export function HoldingsInput() {
                 key={asset.id}
                 className="flex items-center gap-2 bg-slate-900/60 px-3 py-2.5 rounded-xl border border-slate-700/30"
               >
+                <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-400 shrink-0">
+                  {asset.symbol.slice(0, 2).toUpperCase()}
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-slate-100 font-semibold text-sm uppercase truncate">{asset.symbol}</p>
                   <p className="text-slate-500 text-xs truncate">{asset.name}</p>
                 </div>
 
                 {editState?.id === asset.id ? (
-                  /* Edit mode */
                   <div className="flex items-center gap-1.5 shrink-0">
                     <input
                       type="number"
@@ -348,10 +464,9 @@ export function HoldingsInput() {
                     </button>
                   </div>
                 ) : (
-                  /* View mode */
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-slate-300 text-xs font-medium whitespace-nowrap">
-                      {asset.holdings.toFixed(4)} units
+                      {asset.holdings.toFixed(4)}
                     </span>
                     <button
                       onClick={() => setEditState({ id: asset.id, holdings: asset.holdings.toString() })}
@@ -363,7 +478,7 @@ export function HoldingsInput() {
                     <button
                       onClick={() => handleDelete(asset.id, asset.name)}
                       className="p-1.5 rounded-md bg-slate-700/40 hover:bg-red-600/30 text-slate-400 hover:text-red-400 transition-colors"
-                      title="Remove from portfolio"
+                      title="Remove"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
