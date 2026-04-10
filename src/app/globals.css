@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
 
 :root {
   --bg: #09090b;
@@ -40,26 +40,14 @@ body {
   overflow: hidden;
 }
 
-#__next, main { height: 100%; }
-
 /* Minimal scrollbars */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
 
-/* Tabular numbers for finance */
+/* Tabular numbers */
 .tabular { font-variant-numeric: tabular-nums; }
-
-/* Subtle divider */
-.divider { border-color: var(--border-subtle); }
-
-/* Number animation */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.fade-up { animation: fadeInUp 0.2s ease; }
 
 /* Loading shimmer */
 @keyframes shimmer {
@@ -70,6 +58,7 @@ body {
   background: linear-gradient(90deg, var(--bg-surface) 25%, var(--bg-elevated) 50%, var(--bg-surface) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
+  border-radius: 4px;
 }
 
 /* Market strip scroll */
@@ -77,5 +66,5 @@ body {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
 }
-.market-scroll { animation: scroll-left 40s linear infinite; }
+.market-scroll { animation: scroll-left 60s linear infinite; }
 .market-scroll:hover { animation-play-state: paused; }
