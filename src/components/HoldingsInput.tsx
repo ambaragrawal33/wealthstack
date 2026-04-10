@@ -1,231 +1,379 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePortfolioStore } from "@/store/usePortfolioStore";
-import { Plus, HandCoins, CheckCircle2, XCircle, Search } from "lucide-react";
-import { formatINR } from "@/lib/portfolioEngine";
+import {
+  HandCoins, CheckCircle2, XCircle, Search,
+  Pencil, Trash2, Check, X, Loader2, TrendingUp, TrendingDown
+} from "lucide-react";
+
+const MANUAL_TYPES = ['CASH', 'REAL_ESTATE', 'GOLD', 'OTHER'];
+
+interface PreviewData {
+  symbol: string;
+  name: string;
+  currency: string;
+  price: number;
+  change24h: number;
+}
+
+interface EditState {
+  id: string;
+  holdings: string;
+}
 
 export function HoldingsInput() {
-  const setAssets = usePortfolioStore((state) => state.setAssets);
-  const dbAssets = usePortfolioStore((state) => state.dbAssets);
-  const usdInrRate = usePortfolioStore((state) => state.usdInrRate);
+  const setAssets = usePortfolioStore((s) => s.setAssets);
+  const dbAssets = usePortfolioStore((s) => s.dbAssets);
 
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    type: "CRYPTO",
-    symbol: "",
-    name: "",
-    currency: "USD",
-    transType: "BUY",
-    quantity: "",
-    price: "",
-  });
+  // Form state
+  const [type, setType] = useState("CRYPTO");
+  const [symbol, setSymbol] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [manualPrice, setManualPrice] = useState("");
+  const [transType, setTransType] = useState("BUY");
+  const [submitting, setSubmitting] = useState(false);
 
-  const [preview, setPreview] = useState<{ loading: boolean; data?: any; error?: string } | null>(null);
+  // Live search preview
+  const [preview, setPreview] = useState<{ loading: boolean; data?: PreviewData; error?: string } | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounce search effect
+  // Edit state
+  const [editState, setEditState] = useState<EditState | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+
+  const isManual = MANUAL_TYPES.includes(type);
+
+  // Debounced live search
   useEffect(() => {
-     if (!formData.symbol || formData.type === 'CASH' || formData.type === 'REAL_ESTATE' || formData.type === 'GOLD' || formData.type === 'OTHER') {
-         setPreview(null);
-         return;
-     }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
 
-     const timer = setTimeout(async () => {
-         setPreview({ loading: true });
-         try {
-             const res = await fetch(`/api/search?q=${encodeURIComponent(formData.symbol)}&type=${formData.type}`);
-             const data = await res.json();
-             
-             if (!res.ok) throw new Error(data.error || "Not found");
-             
-             setPreview({ loading: false, data });
-             // Auto-fill actual name and currency
-             setFormData(prev => ({ 
-                 ...prev, 
-                 name: data.name || prev.name,
-             }));
-         } catch (e: any) {
-             setPreview({ loading: false, error: e.message });
-         }
-     }, 600); // 600ms debounce
+    if (!symbol.trim() || isManual) {
+      setPreview(null);
+      return;
+    }
 
-     return () => clearTimeout(timer);
-  }, [formData.symbol, formData.type]);
+    setPreview({ loading: true });
 
-  const isMarketAsset = !['CASH', 'REAL_ESTATE', 'GOLD', 'OTHER'].includes(formData.type);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(symbol.trim())}&type=${type}`);
+        const json = await res.json();
+
+        if (!res.ok) {
+          setPreview({ loading: false, error: json.error || "Not found" });
+          return;
+        }
+
+        setPreview({ loading: false, data: json });
+      } catch {
+        setPreview({ loading: false, error: "Network error" });
+      }
+    }, 600);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [symbol, type, isManual]);
+
+  const handleTypeChange = (newType: string) => {
+    setType(newType);
+    setSymbol("");
+    setPreview(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    let finalPrice = formData.price;
-    if (isMarketAsset) {
-       if (!preview || !preview.data) {
-           alert("Please wait for live market data validation.");
-           return;
-       }
-       finalPrice = preview.data.price?.toString();
+
+    let finalSymbol = symbol.trim();
+    let finalName = symbol.trim();
+    let finalPrice = manualPrice;
+    const currency = isManual ? "INR" : (preview?.data?.currency || "USD");
+
+    if (!isManual) {
+      if (!preview?.data) {
+        alert("Please wait for the live market validation to complete.");
+        return;
+      }
+      finalSymbol = preview.data.symbol;
+      finalName = preview.data.name;
+      finalPrice = preview.data.price.toString();
     }
 
-    if (!formData.symbol || !formData.quantity || !finalPrice) return;
-    
-    setLoading(true);
+    if (!finalSymbol || !quantity || !finalPrice) return;
+
+    setSubmitting(true);
     try {
       const res = await fetch("/api/portfolio", {
-         method: "POST",
-         headers: { "Content-Type": "application/json" },
-         body: JSON.stringify({ ...formData, price: finalPrice })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol: finalSymbol,
+          name: finalName,
+          type,
+          currency,
+          transType,
+          quantity,
+          price: finalPrice,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      
       setAssets(data);
-      setFormData({ ...formData, symbol: "", quantity: "", price: "", name: "" }); // Reset
+      setSymbol("");
+      setQuantity("");
+      setManualPrice("");
       setPreview(null);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to add transaction. Check console.");
+    } catch (err: any) {
+      alert("Failed to add: " + err.message);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Remove "${name}" from your portfolio?`)) return;
+    try {
+      const res = await fetch(`/api/portfolio?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setAssets(data);
+    } catch (err: any) {
+      alert("Failed to delete: " + err.message);
+    }
+  };
+
+  const handleEditSave = async () => {
+    if (!editState) return;
+    setEditLoading(true);
+    try {
+      const res = await fetch("/api/portfolio", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editState.id, holdings: editState.holdings }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setAssets(data);
+      setEditState(null);
+    } catch (err: any) {
+      alert("Failed to update: " + err.message);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const canSubmit = !submitting && !preview?.loading && (isManual || !!preview?.data) && !!quantity;
+
   return (
-    <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 backdrop-blur-md">
-       <h3 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
-           <HandCoins className="w-5 h-5 text-primary" />
-           Add Transaction
-       </h3>
-       
-       <form onSubmit={handleSubmit} className="space-y-4">
-           <div className="grid grid-cols-2 gap-3">
-               <div>
-                   <label className="text-xs text-slate-400 mb-1 block">Asset Type</label>
-                   <select 
-                       value={formData.type}
-                       onChange={e => {
-                           const isUsd = e.target.value === 'CRYPTO' || e.target.value === 'US_STOCK';
-                           setFormData({ ...formData, type: e.target.value, symbol: '', currency: isUsd ? 'USD' : 'INR' })
-                       }}
-                       className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-primary"
+    <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 backdrop-blur-md space-y-6">
+      <h3 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
+        <HandCoins className="w-5 h-5 text-violet-400" />
+        Add Holding
+      </h3>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Type + Transaction row */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Asset Type</label>
+            <select
+              value={type}
+              onChange={(e) => handleTypeChange(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500"
+            >
+              <option value="CRYPTO">🪙 Crypto</option>
+              <option value="STOCK">🇮🇳 Indian Stock</option>
+              <option value="US_STOCK">🇺🇸 US Stock / ETF</option>
+              <option value="MF">📈 Mutual Fund</option>
+              <option value="CASH">💵 Cash / Bank</option>
+              <option value="REAL_ESTATE">🏠 Real Estate</option>
+              <option value="GOLD">🥇 Gold</option>
+              <option value="OTHER">📦 Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Direction</label>
+            <select
+              value={transType}
+              onChange={(e) => setTransType(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500"
+            >
+              <option value="BUY">BUY</option>
+              <option value="SELL">SELL</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Ticker input */}
+        <div>
+          <label className="text-xs text-slate-400 mb-1 block">
+            {isManual ? "Label / Description" : "Ticker / Name (e.g. MSFT, bitcoin, RELIANCE.NS)"}
+          </label>
+          <input
+            type="text"
+            value={symbol}
+            onChange={(e) => setSymbol(e.target.value)}
+            placeholder={
+              type === "CRYPTO" ? "bitcoin, ethereum, solana" :
+              type === "STOCK" ? "RELIANCE.NS, INFY.NS, TCS.NS" :
+              type === "US_STOCK" ? "AAPL, MSFT, SPY" :
+              type === "MF" ? "0P0000XVMK.BO" :
+              "Cash savings, SBI account..."
+            }
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500 transition-colors"
+            required
+          />
+
+          {/* Live preview card */}
+          {!isManual && preview && (
+            <div className="mt-2 p-3 rounded-xl border bg-slate-900/90 flex items-center justify-between min-h-[52px]">
+              {preview.loading ? (
+                <div className="flex items-center gap-2 text-slate-400 text-sm animate-pulse w-full">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Searching live markets...
+                </div>
+              ) : preview.error ? (
+                <div className="flex items-center gap-2 text-red-400 text-sm">
+                  <XCircle className="w-4 h-4 shrink-0" />
+                  <span>{preview.error}</span>
+                </div>
+              ) : preview.data ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <div>
+                      <p className="text-slate-100 font-semibold text-sm leading-tight">{preview.data.name}</p>
+                      <p className="text-slate-500 text-xs">{preview.data.symbol.toUpperCase()}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-slate-100 font-bold text-sm">
+                      {preview.data.currency === "INR" ? "₹" : "$"}
+                      {preview.data.price.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                    </p>
+                    <p className={`text-xs font-medium flex items-center justify-end gap-0.5 ${preview.data.change24h >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {preview.data.change24h >= 0
+                        ? <TrendingUp className="w-3 h-3" />
+                        : <TrendingDown className="w-3 h-3" />}
+                      {Math.abs(preview.data.change24h).toFixed(2)}%
+                    </p>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          )}
+        </div>
+
+        {/* Quantity + Manual price row */}
+        <div className={`grid gap-3 ${isManual ? "grid-cols-2" : "grid-cols-1"}`}>
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">
+              {isManual ? "Quantity / Units" : "Quantity / Shares"}
+            </label>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500"
+              required
+            />
+          </div>
+          {isManual && (
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Value per unit (₹)</label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                value={manualPrice}
+                onChange={(e) => setManualPrice(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-violet-500"
+                required
+              />
+            </div>
+          )}
+        </div>
+
+        <button
+          type="submit"
+          disabled={!canSubmit}
+          className="w-full py-2.5 rounded-lg text-sm font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Adding...</> : "Add to Portfolio"}
+        </button>
+      </form>
+
+      {/* Holdings list with edit / delete */}
+      {dbAssets.length > 0 && (
+        <div className="border-t border-slate-700/50 pt-4">
+          <h4 className="text-sm font-semibold text-slate-400 mb-3">Your Holdings</h4>
+          <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+            {dbAssets.map((asset) => (
+              <div
+                key={asset.id}
+                className="flex items-center gap-2 bg-slate-900/60 px-3 py-2.5 rounded-xl border border-slate-700/30"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-slate-100 font-semibold text-sm uppercase truncate">{asset.symbol}</p>
+                  <p className="text-slate-500 text-xs truncate">{asset.name}</p>
+                </div>
+
+                {editState?.id === asset.id ? (
+                  /* Edit mode */
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={editState.holdings}
+                      onChange={(e) => setEditState({ ...editState, holdings: e.target.value })}
+                      className="w-24 bg-slate-800 border border-violet-500 rounded-md px-2 py-1 text-xs text-slate-100 focus:outline-none"
+                      autoFocus
+                    />
+                    <button
+                      onClick={handleEditSave}
+                      disabled={editLoading}
+                      className="p-1.5 rounded-md bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 transition-colors disabled:opacity-50"
                     >
-                       <option value="CRYPTO">Crypto (CoinGecko)</option>
-                       <option value="STOCK">Indian Stock (Yahoo)</option>
-                       <option value="US_STOCK">US Stock (Yahoo)</option>
-                       <option value="MF">Mutual Fund (Yahoo)</option>
-                       <option value="CASH">Cash / Bank (Manual)</option>
-                       <option value="REAL_ESTATE">Real Estate (Manual)</option>
-                       <option value="GOLD">Gold (Manual)</option>
-                       <option value="OTHER">Other (Manual)</option>
-                   </select>
-               </div>
-               <div>
-                   <label className="text-xs text-slate-400 mb-1 block">Transaction Type</label>
-                   <select 
-                       value={formData.transType}
-                       onChange={e => setFormData({ ...formData, transType: e.target.value })}
-                       className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-primary"
+                      {editLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      onClick={() => setEditState(null)}
+                      className="p-1.5 rounded-md bg-slate-700/40 hover:bg-slate-600/40 text-slate-400 transition-colors"
                     >
-                       <option value="BUY">BUY</option>
-                       <option value="SELL">SELL</option>
-                   </select>
-               </div>
-           </div>
-
-           <div>
-               <label className="text-xs text-slate-400 mb-1 block">Ticker / Symbol / Identifier</label>
-               <input 
-                   type="text" 
-                   placeholder={formData.type === 'CRYPTO' ? 'bitcoin, ethereum' : 'RELIANCE.NS, AAPL'}
-                   value={formData.symbol}
-                   onChange={e => setFormData({ ...formData, symbol: e.target.value, name: e.target.value })}
-                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-primary"
-                   required
-               />
-               
-               {/* Live Preview UI */}
-               {preview && (
-                   <div className="mt-2 text-sm p-3 rounded-xl border border-slate-700 bg-slate-900/80 flex items-center justify-between">
-                       {preview.loading ? (
-                           <div className="flex items-center gap-2 text-slate-400 animate-pulse">
-                               <Search className="w-4 h-4" /> Searching live market...
-                           </div>
-                       ) : preview.error ? (
-                           <div className="flex items-center gap-2 text-destructive font-medium">
-                               <XCircle className="w-4 h-4" /> {preview.error}
-                           </div>
-                       ) : preview.data ? (
-                           <>
-                               <div className="flex items-center gap-2">
-                                   <CheckCircle2 className="w-4 h-4 text-success" />
-                                   <div>
-                                       <span className="text-slate-200 font-bold block leading-tight">{preview.data.name}</span>
-                                       <span className="text-slate-500 text-xs">{preview.data.symbol.toUpperCase()} • Live Match</span>
-                                   </div>
-                               </div>
-                               <div className="text-right">
-                                   <span className="block text-slate-200 font-bold">
-                                       {preview.data.currency === 'INR' ? '₹' : '$'}{(preview.data.price).toLocaleString()}
-                                   </span>
-                                   <span className="text-xs text-slate-500 uppercase">Live Market</span>
-                               </div>
-                           </>
-                       ) : null}
-                   </div>
-               )}
-           </div>
-
-           <div className={`grid ${isMarketAsset ? 'grid-cols-1' : 'grid-cols-2'} gap-3`}>
-               <div>
-                   <label className="text-xs text-slate-400 mb-1 block">Quantity</label>
-                   <input 
-                       type="number" step="any" min="0" required
-                       value={formData.quantity}
-                       onChange={e => setFormData({ ...formData, quantity: e.target.value })}
-                       className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-primary"
-                   />
-               </div>
-               {!isMarketAsset && (
-                   <div>
-                       <label className="text-xs text-slate-400 mb-1 block">Value/Price per unit ({formData.currency})</label>
-                       <input 
-                           type="number" step="any" min="0" required
-                           value={formData.price}
-                           onChange={e => setFormData({ ...formData, price: e.target.value })}
-                           className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-primary"
-                       />
-                   </div>
-               )}
-           </div>
-
-           <button 
-             type="submit"
-             disabled={loading || preview?.loading || !!preview?.error}
-             className="w-full mt-2 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-           >
-              {loading ? "Processing..." : "Add to Ledger"}
-           </button>
-       </form>
-
-       {/* Brief Holding Breakdown locally */}
-       {dbAssets.length > 0 && (
-           <div className="mt-8 border-t border-slate-700/50 pt-4">
-               <h4 className="text-sm font-semibold text-slate-400 mb-3">Portfolio Ledger Book</h4>
-               <div className="max-h-48 overflow-y-auto space-y-2 pr-2">
-                   {dbAssets.map(asset => (
-                       <div key={asset.id} className="flex flex-col gap-1 bg-slate-900/50 p-3 rounded-xl border border-slate-700/30">
-                           <div className="flex justify-between items-center font-medium">
-                               <span className="text-slate-200 uppercase">{asset.symbol}</span>
-                               <span className="text-slate-300">{asset.holdings.toFixed(4)} Units</span>
-                           </div>
-                           <div className="flex justify-between text-xs text-slate-500">
-                               <span>Avg Price: {asset.averagePrice.toFixed(2)} {asset.currency}</span>
-                               <span>{asset.type}</span>
-                           </div>
-                       </div>
-                   ))}
-               </div>
-           </div>
-       )}
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  /* View mode */
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-slate-300 text-xs font-medium whitespace-nowrap">
+                      {asset.holdings.toFixed(4)} units
+                    </span>
+                    <button
+                      onClick={() => setEditState({ id: asset.id, holdings: asset.holdings.toString() })}
+                      className="p-1.5 rounded-md bg-slate-700/40 hover:bg-violet-600/30 text-slate-400 hover:text-violet-400 transition-colors"
+                      title="Edit holdings"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(asset.id, asset.name)}
+                      className="p-1.5 rounded-md bg-slate-700/40 hover:bg-red-600/30 text-slate-400 hover:text-red-400 transition-colors"
+                      title="Remove from portfolio"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
