@@ -26,11 +26,11 @@ function fmt(n: number): string {
 
 function Stat({ label, value, sub, up }: { label: string; value: string; sub?: string; up?: boolean }) {
   return (
-    <div className="px-6 py-5 border-r border-[#1f1f23] last:border-r-0 min-w-0">
-      <p className="text-[11px] text-[#52525b] uppercase tracking-wider mb-2 font-medium">{label}</p>
-      <p className="text-lg font-semibold text-[#fafafa] tabular truncate">{value}</p>
+    <div className="px-6 py-5 border-r border-[var(--border-subtle)] last:border-r-0 min-w-0">
+      <p className="text-[11px] text-[var(--text-muted)] uppercase tracking-wider mb-2 font-medium">{label}</p>
+      <p className="text-lg font-semibold text-[var(--text-primary)] tabular truncate">{value}</p>
       {sub !== undefined && (
-        <p className={`text-xs font-medium tabular mt-0.5 ${up ? "text-[#22c55e]" : up === false ? "text-[#ef4444]" : "text-[#71717a]"}`}>
+        <p className={`text-xs font-medium tabular mt-0.5 ${up ? "text-[var(--green)]" : up === false ? "text-[var(--red)]" : "text-[var(--text-muted)]"}`}>
           {sub}
         </p>
       )}
@@ -107,9 +107,9 @@ export function Dashboard() {
   ];
 
   return (
-    <div className="h-full flex flex-col bg-[#09090b]">
+    <div className="h-full flex flex-col bg-[var(--bg)]">
       {/* Top bar */}
-      <header className="shrink-0 flex items-center justify-between px-6 py-0 h-12 border-b border-[#1f1f23]">
+      <header className="shrink-0 flex items-center justify-between px-6 py-0 h-12 border-b border-[var(--border-subtle)]">
         <nav className="flex items-center gap-1">
           {tabs.map(t => (
             <button
@@ -117,8 +117,8 @@ export function Dashboard() {
               onClick={() => setTab(t.id)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                 tab === t.id
-                  ? "bg-[#18181b] text-[#fafafa]"
-                  : "text-[#71717a] hover:text-[#a1a1aa] hover:bg-[#111113]"
+                  ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]"
               }`}
             >
               <t.icon className="w-3.5 h-3.5" />
@@ -128,13 +128,13 @@ export function Dashboard() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <div className={`flex items-center gap-1.5 text-[11px] font-medium ${syncing ? "text-amber-400" : "text-[#22c55e]"}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${syncing ? "bg-amber-400 animate-pulse" : "bg-[#22c55e]"}`} />
+          <div className={`flex items-center gap-1.5 text-[11px] font-medium ${syncing ? "text-amber-400" : "text-[var(--green)]"}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${syncing ? "bg-amber-400 animate-pulse" : "bg-[var(--green)]"}`} />
             {syncing ? "Syncing" : "Live"}
           </div>
           <button
             onClick={() => setShowAddPanel(p => !p)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#18181b] border border-[#27272a] hover:border-[#3f3f46] text-xs font-medium text-[#fafafa] rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-elevated)] border border-[var(--border)] hover:border-[var(--border)] text-xs font-medium text-[var(--text-primary)] rounded-lg transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             Add Holding
@@ -147,7 +147,7 @@ export function Dashboard() {
         {tab === "DASHBOARD" && (
           <div className="flex flex-col">
             {/* Stats row */}
-            <div className="shrink-0 flex border-b border-[#1f1f23] overflow-x-auto">
+            <div className="shrink-0 flex border-b border-[var(--border-subtle)] overflow-x-auto">
               <Stat label="Net Worth" value={fmt(totalINR)} />
               <Stat
                 label="Day Change"
@@ -171,32 +171,32 @@ export function Dashboard() {
               {/* Left: chart + table */}
               <div className="flex-1 min-w-0 overflow-y-auto">
                 {/* Chart */}
-                <div className="p-6 border-b border-[#1f1f23]">
+                <div className="p-6 border-b border-[var(--border-subtle)]">
                   <AdvancedNetWorthChart />
                 </div>
 
                 {/* Holdings table */}
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-semibold text-[#fafafa]">Holdings</h2>
-                    <span className="text-xs text-[#52525b]">{dbAssets.length} positions</span>
+                    <h2 className="text-sm font-semibold text-[var(--text-primary)]">Holdings</h2>
+                    <span className="text-xs text-[var(--text-muted)]">{dbAssets.length} positions</span>
                   </div>
 
                   {dbAssets.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
-                      <div className="w-12 h-12 rounded-xl bg-[#111113] border border-[#27272a] flex items-center justify-center mb-4">
-                        <Plus className="w-5 h-5 text-[#52525b]" />
+                      <div className="w-12 h-12 rounded-xl bg-[var(--bg-surface)] border border-[var(--border)] flex items-center justify-center mb-4">
+                        <Plus className="w-5 h-5 text-[var(--text-muted)]" />
                       </div>
-                      <p className="text-sm text-[#71717a] mb-1">No holdings yet</p>
-                      <p className="text-xs text-[#3f3f46]">Click "Add Holding" to start building your portfolio</p>
+                      <p className="text-sm text-[var(--text-muted)] mb-1">No holdings yet</p>
+                      <p className="text-xs text-[var(--text-muted)]">Click "Add Holding" to start building your portfolio</p>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b border-[#1f1f23]">
+                          <tr className="border-b border-[var(--border-subtle)]">
                             {["Asset", "Holdings", "Live Price", "Value (INR)", "Day", "P&L"].map(h => (
-                              <th key={h} className="text-left text-[10px] uppercase tracking-wider text-[#52525b] font-medium pb-3 pr-6 last:pr-0">
+                              <th key={h} className="text-left text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-medium pb-3 pr-6 last:pr-0">
                                 {h}
                               </th>
                             ))}
@@ -216,20 +216,20 @@ export function Dashboard() {
                             const gainUp = pnlRow >= 0;
 
                             return (
-                              <tr key={asset.id} className="border-b border-[#1a1a1a] hover:bg-[#111113] transition-colors group">
+                              <tr key={asset.id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] transition-colors group">
                                 <td className="py-3.5 pr-6">
                                   <div className="flex items-center gap-3">
-                                    <div className="w-7 h-7 rounded-lg bg-[#18181b] border border-[#27272a] flex items-center justify-center text-[10px] font-bold text-[#71717a] shrink-0">
+                                    <div className="w-7 h-7 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border)] flex items-center justify-center text-[10px] font-bold text-[var(--text-muted)] shrink-0">
                                       {asset.symbol.slice(0, 2).toUpperCase()}
                                     </div>
                                     <div className="min-w-0">
-                                      <p className="font-semibold text-[#fafafa] truncate text-xs">{asset.symbol.toUpperCase()}</p>
-                                      <p className="text-[10px] text-[#52525b] truncate max-w-[120px]">{asset.name}</p>
+                                      <p className="font-semibold text-[var(--text-primary)] truncate text-xs">{asset.symbol.toUpperCase()}</p>
+                                      <p className="text-[10px] text-[var(--text-muted)] truncate max-w-[120px]">{asset.name}</p>
                                     </div>
                                   </div>
                                 </td>
-                                <td className="py-3.5 pr-6 text-xs text-[#a1a1aa] tabular">{asset.holdings.toFixed(4)}</td>
-                                <td className="py-3.5 pr-6 text-xs text-[#fafafa] tabular font-medium">
+                                <td className="py-3.5 pr-6 text-xs text-[var(--text-secondary)] tabular">{asset.holdings.toFixed(4)}</td>
+                                <td className="py-3.5 pr-6 text-xs text-[var(--text-primary)] tabular font-medium">
                                   {p ? (
                                     <>
                                       {asset.currency === "INR" ? "₹" : "$"}
@@ -237,18 +237,18 @@ export function Dashboard() {
                                         ? p.nativePrice.toLocaleString(undefined, { maximumFractionDigits: 0 })
                                         : p.nativePrice.toLocaleString(undefined, { maximumFractionDigits: 4 })}
                                     </>
-                                  ) : <span className="text-[#3f3f46]">—</span>}
+                                  ) : <span className="text-[var(--text-muted)]">—</span>}
                                 </td>
-                                <td className="py-3.5 pr-6 text-xs text-[#fafafa] tabular font-semibold">
+                                <td className="py-3.5 pr-6 text-xs text-[var(--text-primary)] tabular font-semibold">
                                   {fmt(valueINR)}
                                 </td>
                                 <td className="py-3.5 pr-6">
-                                  <span className={`text-xs font-medium tabular ${dayUp ? "text-[#22c55e]" : "text-[#ef4444]"}`}>
+                                  <span className={`text-xs font-medium tabular ${dayUp ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
                                     {dayUp ? "+" : ""}{dayPct.toFixed(2)}%
                                   </span>
                                 </td>
                                 <td className="py-3.5">
-                                  <div className={`text-xs font-medium tabular ${gainUp ? "text-[#22c55e]" : "text-[#ef4444]"}`}>
+                                  <div className={`text-xs font-medium tabular ${gainUp ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
                                     <span>{gainUp ? "+" : ""}{fmt(pnlRow)}</span>
                                     <span className="text-[10px] ml-1 opacity-70">({gainUp ? "+" : ""}{pnlRowPct.toFixed(1)}%)</span>
                                   </div>
@@ -265,9 +265,9 @@ export function Dashboard() {
 
               {/* Right: allocation */}
               {dbAssets.length > 0 && (
-                <div className="w-[260px] shrink-0 border-l border-[#1f1f23] flex flex-col">
-                  <div className="p-5 border-b border-[#1f1f23]">
-                    <p className="text-[11px] uppercase tracking-wider text-[#52525b] font-medium mb-4">Allocation</p>
+                <div className="w-[260px] shrink-0 border-l border-[var(--border-subtle)] flex flex-col">
+                  <div className="p-5 border-b border-[var(--border-subtle)]">
+                    <p className="text-[11px] uppercase tracking-wider text-[var(--text-muted)] font-medium mb-4">Allocation</p>
                     <AllocationChart />
                   </div>
                 </div>
@@ -278,15 +278,15 @@ export function Dashboard() {
 
         {tab === "TRANSACTIONS" && (
           <div className="p-6">
-            <h2 className="text-sm font-semibold text-[#fafafa] mb-6">Transaction History</h2>
+            <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-6">Transaction History</h2>
             <TransactionsTable />
           </div>
         )}
 
         {tab === "ANALYTICS" && (
           <div className="p-6">
-            <h2 className="text-sm font-semibold text-[#fafafa] mb-2">Performance Analytics</h2>
-            <p className="text-xs text-[#52525b] mb-6">Breakdown of your portfolio's returns and risk profile.</p>
+            <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Performance Analytics</h2>
+            <p className="text-xs text-[var(--text-muted)] mb-6">Breakdown of your portfolio's returns and risk profile.</p>
             <PerformanceAnalytics />
           </div>
         )}
@@ -403,10 +403,10 @@ export function Dashboard() {
       {showAddPanel && (
         <div className="fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddPanel(false)} />
-          <div className="absolute right-0 top-0 bottom-0 w-[380px] bg-[#111113] border-l border-[#27272a] overflow-y-auto shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b border-[#1f1f23]">
-              <h3 className="text-sm font-semibold text-[#fafafa]">Add Holding</h3>
-              <button onClick={() => setShowAddPanel(false)} className="text-[#52525b] hover:text-[#a1a1aa] transition-colors">
+          <div className="absolute right-0 top-0 bottom-0 w-[380px] bg-[var(--bg-surface)] border-l border-[var(--border)] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-[var(--border-subtle)]">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Add Holding</h3>
+              <button onClick={() => setShowAddPanel(false)} className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors">
                 ✕
               </button>
             </div>

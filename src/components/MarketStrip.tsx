@@ -54,21 +54,21 @@ export function MarketStrip() {
   const content = [...items, ...items]; // double for seamless loop
 
   return (
-    <div className="border-b border-[#1f1f23] overflow-hidden bg-[#09090b] h-9 flex items-center">
+    <div className="border-b border-[var(--border-subtle)] overflow-hidden bg-[var(--bg)] h-9 flex items-center">
       <div className="flex market-scroll whitespace-nowrap gap-0">
         {content.map((item, idx) => {
           const p = prices[item.symbol];
           if (!p) return null;
           const isUp = p.change >= 0;
           return (
-            <span key={`${item.symbol}-${idx}`} className="inline-flex items-center gap-2 px-5 text-xs border-r border-[#1f1f23]">
-              <span className="text-[#71717a] font-medium">{item.label}</span>
-              <span className="text-[#fafafa] font-semibold tabular">
+            <span key={`${item.symbol}-${idx}`} className="inline-flex items-center gap-2 px-5 text-xs border-r border-[var(--border-subtle)]">
+              <span className="text-[var(--text-muted)] font-medium">{item.label}</span>
+              <span className="text-[var(--text-primary)] font-semibold tabular">
                 {p.currency === "INR" ? "₹" : "$"}{p.price > 1000
                   ? p.price.toLocaleString(undefined, { maximumFractionDigits: 0 })
                   : p.price.toLocaleString(undefined, { maximumFractionDigits: 4 })}
               </span>
-              <span className={`font-medium tabular ${isUp ? "text-[#22c55e]" : "text-[#ef4444]"}`}>
+              <span className={`font-medium tabular ${isUp ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
                 {isUp ? "+" : ""}{p.change.toFixed(2)}%
               </span>
             </span>
