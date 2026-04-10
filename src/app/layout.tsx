@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Crypto Terminal - Net Worth Tracker",
-  description: "Real-time cryptocurrency portfolio tracking dashboard",
+  title: "Wealthstack — Total Net Worth Tracker",
+  description: "Professional portfolio tracker for stocks, crypto, mutual funds, and more. INR-based dashboard.",
 };
 
 export default function RootLayout({
@@ -16,7 +16,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.className} min-h-screen antialiased bg-slate-950 text-slate-50`}>
+      <body className={`${inter.className} antialiased`} style={{ height: '100dvh', overflow: 'hidden' }}>
         {children}
       </body>
     </html>

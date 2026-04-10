@@ -1,55 +1,81 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --background: #0f172a; /* slate-900 */
-  --foreground: #f8fafc; /* slate-50 */
-  --card: #1e293b; /* slate-800 */
-  --card-foreground: #f8fafc;
-  --border: #334155; /* slate-700 */
-  --primary: #3b82f6; /* blue-500 */
-  --primary-foreground: #ffffff;
-  --destructive: #ef4444; /* red-500 */
-  --destructive-foreground: #ffffff;
-  --success: #22c55e; /* green-500 */
-  --success-foreground: #ffffff;
+  --bg: #09090b;
+  --bg-surface: #111113;
+  --bg-elevated: #18181b;
+  --bg-hover: #1c1c1f;
+  --border: #27272a;
+  --border-subtle: #1f1f23;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #52525b;
+  --green: #22c55e;
+  --red: #ef4444;
+  --accent: #3b82f6;
+  --accent-muted: rgba(59,130,246,0.12);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
+  --color-background: var(--bg);
+  --color-foreground: var(--text-primary);
   --color-border: var(--border);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
-  
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-primary: var(--accent);
+  --color-success: var(--green);
+  --color-destructive: var(--red);
+  --font-sans: 'Inter', system-ui, sans-serif;
 }
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { height: 100%; }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), sans-serif;
-  color-scheme: dark;
+  background-color: var(--bg);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  height: 100%;
+  overflow: hidden;
 }
 
-/* Base minimal scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+#__next, main { height: 100%; }
+
+/* Minimal scrollbars */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+
+/* Tabular numbers for finance */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Subtle divider */
+.divider { border-color: var(--border-subtle); }
+
+/* Number animation */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+.fade-up { animation: fadeInUp 0.2s ease; }
+
+/* Loading shimmer */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
 }
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 3px;
+.shimmer {
+  background: linear-gradient(90deg, var(--bg-surface) 25%, var(--bg-elevated) 50%, var(--bg-surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #475569; /* slate-600 */
+
+/* Market strip scroll */
+@keyframes scroll-left {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
 }
+.market-scroll { animation: scroll-left 40s linear infinite; }
+.market-scroll:hover { animation-play-state: paused; }
