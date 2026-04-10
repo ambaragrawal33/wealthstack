@@ -1,56 +1,58 @@
 import { NextResponse } from 'next/server';
 import YahooFinance from 'yahoo-finance2';
 
-// yahoo-finance2 v3: must instantiate
 const yf = new YahooFinance();
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const assets: { symbol: string; type: string; currency: string }[] = body.assets || [];
+    const assets: { symbol: string; type: string; currency: string; holdings: number }[] = body.assets || [];
 
-    const yahooSymbols = assets
-      .filter(a => ['STOCK', 'US_STOCK', 'MF', 'OTHER'].includes(a.type))
-      .map(a => a.symbol);
-
-    const cryptoSymbols = assets
-      .filter(a => a.type === 'CRYPTO')
-      .map(a => a.symbol.toLowerCase());
+    const yahooAssets = assets.filter(a => ['STOCK', 'US_STOCK', 'MF', 'OTHER'].includes(a.type));
+    const cryptoAssets = assets.filter(a => a.type === 'CRYPTO');
 
     const period1 = new Date();
-    period1.setFullYear(period1.getFullYear() - 1); // 1 year back
+    period1.setFullYear(period1.getFullYear() - 1);
+    const period2 = new Date();
 
     const results: Record<string, any> = {};
 
-    // Fetch Yahoo historical (stocks, ETFs, MFs)
-    for (const symbol of yahooSymbols) {
+    // Fetch Yahoo using chart() — historical() is deprecated in v3
+    for (const asset of yahooAssets) {
       try {
-        const result: any[] = await (yf.historical(symbol, {
+        const chartData: any = await yf.chart(asset.symbol, {
           period1,
+          period2,
           interval: '1wk',
-        }) as Promise<any[]>);
+        });
 
-        if (result && result.length > 0) {
-          results[symbol] = {
-            prices: result
-              .filter(r => r.close != null)
-              .map(r => ({ date: r.date, price: r.close })),
+        const quotes = chartData?.quotes ?? [];
+        if (quotes.length > 0) {
+          results[asset.symbol] = {
+            currency: asset.currency,
+            prices: quotes
+              .filter((q: any) => q.close != null)
+              .map((q: any) => ({
+                date: q.date,
+                price: q.close,
+              })),
           };
         }
       } catch (e: any) {
-        console.error(`History failed for ${symbol}:`, e.message);
+        console.error(`History failed for ${asset.symbol}:`, e.message);
       }
     }
 
-    // Fetch Crypto historical (CoinGecko — 365 day daily)
-    for (const coin of cryptoSymbols) {
+    // Fetch Crypto historical from CoinGecko
+    for (const asset of cryptoAssets) {
       try {
         const res = await fetch(
-          `https://api.coingecko.com/api/v3/coins/${coin}/market_chart?vs_currency=usd&days=365&interval=daily`
+          `https://api.coingecko.com/api/v3/coins/${asset.symbol}/market_chart?vs_currency=usd&days=365&interval=daily`
         );
         if (res.ok) {
           const data = await res.json();
-          results[coin] = {
+          results[asset.symbol] = {
+            currency: 'USD',
             prices: (data.prices as [number, number][]).map(p => ({
               date: new Date(p[0]),
               price: p[1],
@@ -58,23 +60,22 @@ export async function POST(req: Request) {
           };
         }
       } catch (e: any) {
-        console.error(`Crypto history failed for ${coin}:`, e.message);
+        console.error(`Crypto history failed for ${asset.symbol}:`, e.message);
       }
     }
 
-    // Always fetch USD→INR historical rate for conversion
+    // Always fetch USD→INR for currency conversion
     try {
-      const inrHist: any[] = await (yf.historical('INR=X', {
-        period1,
-        interval: '1wk',
-      }) as Promise<any[]>);
+      const inrChart: any = await yf.chart('INR=X', { period1, period2, interval: '1wk' });
+      const inrQuotes = inrChart?.quotes ?? [];
       results['INR=X'] = {
-        prices: inrHist
-          .filter(r => r.close != null)
-          .map(r => ({ date: r.date, price: r.close })),
+        currency: 'USD',
+        prices: inrQuotes
+          .filter((q: any) => q.close != null)
+          .map((q: any) => ({ date: q.date, price: q.close })),
       };
     } catch (e: any) {
-      console.error('History failed for INR=X:', e.message);
+      console.error('INR=X history failed:', e.message);
     }
 
     return NextResponse.json(results);
