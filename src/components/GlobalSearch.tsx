@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Search, X, TrendingUp, TrendingDown, ArrowRight, Loader2 } from "lucide-react";
+import { Search, X, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
+import { AssetLogo } from "./AssetLogo";
 
 interface SearchResult {
   symbol: string;
@@ -10,6 +11,8 @@ interface SearchResult {
   price: number;
   change24h: number;
   type: string;
+  logo?: string | null;
+  exchange?: string | null;
 }
 
 interface GlobalSearchProps {
@@ -120,12 +123,13 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
           <div className="mt-2 bg-[var(--bg-surface)] border border-[var(--border)] rounded-xl overflow-hidden shadow-2xl">
             <div className="px-5 py-4 flex items-center justify-between group">
               <div className="flex items-center gap-4">
-                <div className="w-9 h-9 rounded-lg bg-[var(--bg-elevated)] flex items-center justify-center text-xs font-bold text-[var(--text-secondary)] shrink-0 border border-[var(--border)]">
-                  {result.symbol.slice(0, 2).toUpperCase()}
-                </div>
+                <AssetLogo logo={(result as any).logo} symbol={result.symbol} size={40} />
                 <div>
                   <p className="text-sm font-semibold text-[var(--text-primary)]">{result.name}</p>
-                  <p className="text-xs text-[var(--text-muted)] tabular">{result.symbol.toUpperCase()} · {result.type}</p>
+                  <p className="text-xs text-[var(--text-muted)] tabular">
+                    {result.symbol.toUpperCase()}
+                    {(result as any).exchange ? ` · ${(result as any).exchange}` : ` · ${result.type}`}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-4">

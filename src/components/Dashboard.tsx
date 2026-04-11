@@ -10,10 +10,12 @@ import { PerformanceAnalytics } from "./views/PerformanceAnalytics";
 import { calcAssetCurrentValueINR, calcAsset24hChange } from "@/lib/portfolioEngine";
 import {
   LayoutDashboard, ListOrdered, BarChart2, Plus,
-  TrendingUp, TrendingDown, RefreshCw, Settings, ChevronRight,
-  Sun, Moon, Download, Clock, DollarSign
+  TrendingUp, TrendingDown, Settings, ChevronRight,
+  Sun, Moon, Download, Clock, DollarSign,
+  Pencil, Trash2, Check, X, Loader2
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
+import { AssetLogo } from "./AssetLogo";
 
 type Tab = "DASHBOARD" | "TRANSACTIONS" | "ANALYTICS" | "SETTINGS";
 
@@ -50,6 +52,35 @@ export function Dashboard() {
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [pollInterval, setPollInterval] = useState(15);
   const { theme, toggle: toggleTheme } = useTheme();
+  const [editState, setEditState] = useState<{ id: string; holdings: string } | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Remove "${name}" from portfolio?`)) return;
+    try {
+      const res = await fetch(`/api/portfolio?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setAssets(data);
+    } catch (e: any) { alert("Delete failed: " + e.message); }
+  };
+
+  const handleEditSave = async () => {
+    if (!editState) return;
+    setEditLoading(true);
+    try {
+      const res = await fetch("/api/portfolio", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editState.id, holdings: parseFloat(editState.holdings) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setAssets(data);
+      setEditState(null);
+    } catch (e: any) { alert("Update failed: " + e.message); }
+    finally { setEditLoading(false); }
+  };
 
   // Load portfolio
   useEffect(() => {
@@ -195,8 +226,8 @@ export function Dashboard() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-[var(--border-subtle)]">
-                            {["Asset", "Holdings", "Live Price", "Value (INR)", "Day", "P&L"].map(h => (
-                              <th key={h} className="text-left text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-medium pb-3 pr-6 last:pr-0">
+                            {["Asset", "Holdings", "Live Price", "Value (INR)", "Day", "P&L", ""].map(h => (
+                              <th key={h} className="text-left text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-medium pb-3 pr-4 last:pr-0">
                                 {h}
                               </th>
                             ))}
@@ -217,19 +248,45 @@ export function Dashboard() {
 
                             return (
                               <tr key={asset.id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] transition-colors group">
-                                <td className="py-3.5 pr-6">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-7 h-7 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border)] flex items-center justify-center text-[10px] font-bold text-[var(--text-muted)] shrink-0">
-                                      {asset.symbol.slice(0, 2).toUpperCase()}
-                                    </div>
+                                <td className="py-3 pr-4">
+                                  <div className="flex items-center gap-2.5">
+                                    <AssetLogo symbol={asset.symbol} size={28} />
                                     <div className="min-w-0">
                                       <p className="font-semibold text-[var(--text-primary)] truncate text-xs">{asset.symbol.toUpperCase()}</p>
-                                      <p className="text-[10px] text-[var(--text-muted)] truncate max-w-[120px]">{asset.name}</p>
+                                      <p className="text-[10px] text-[var(--text-muted)] truncate max-w-[110px]">{asset.name}</p>
                                     </div>
                                   </div>
                                 </td>
-                                <td className="py-3.5 pr-6 text-xs text-[var(--text-secondary)] tabular">{asset.holdings.toFixed(4)}</td>
-                                <td className="py-3.5 pr-6 text-xs text-[var(--text-primary)] tabular font-medium">
+                                <td className="py-3 pr-4">
+                                  {editState?.id === asset.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        step="any"
+                                        value={editState.holdings}
+                                        onChange={e => setEditState({ ...editState, holdings: e.target.value })}
+                                        autoFocus
+                                        className="w-20 text-xs px-2 py-1 rounded-md border bg-[var(--bg)] text-[var(--text-primary)] border-[var(--accent)] focus:outline-none tabular"
+                                      />
+                                      <button
+                                        onClick={handleEditSave}
+                                        disabled={editLoading}
+                                        className="p-1 rounded text-[var(--green)] hover:bg-[var(--bg-surface)] transition-colors disabled:opacity-50"
+                                      >
+                                        {editLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                      </button>
+                                      <button
+                                        onClick={() => setEditState(null)}
+                                        className="p-1 rounded text-[var(--text-muted)] hover:bg-[var(--bg-surface)] transition-colors"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-[var(--text-secondary)] tabular">{asset.holdings.toFixed(4)}</span>
+                                  )}
+                                </td>
+                                <td className="py-3 pr-4 text-xs text-[var(--text-primary)] tabular font-medium">
                                   {p ? (
                                     <>
                                       {asset.currency === "INR" ? "₹" : "$"}
@@ -239,18 +296,35 @@ export function Dashboard() {
                                     </>
                                   ) : <span className="text-[var(--text-muted)]">—</span>}
                                 </td>
-                                <td className="py-3.5 pr-6 text-xs text-[var(--text-primary)] tabular font-semibold">
-                                  {fmt(valueINR)}
-                                </td>
-                                <td className="py-3.5 pr-6">
+                                <td className="py-3 pr-4 text-xs text-[var(--text-primary)] tabular font-semibold">{fmt(valueINR)}</td>
+                                <td className="py-3 pr-4">
                                   <span className={`text-xs font-medium tabular ${dayUp ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
                                     {dayUp ? "+" : ""}{dayPct.toFixed(2)}%
                                   </span>
                                 </td>
-                                <td className="py-3.5">
+                                <td className="py-3 pr-4">
                                   <div className={`text-xs font-medium tabular ${gainUp ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
                                     <span>{gainUp ? "+" : ""}{fmt(pnlRow)}</span>
                                     <span className="text-[10px] ml-1 opacity-70">({gainUp ? "+" : ""}{pnlRowPct.toFixed(1)}%)</span>
+                                  </div>
+                                </td>
+                                {/* Actions — visible on hover */}
+                                <td className="py-3 pl-2">
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={() => setEditState({ id: asset.id, holdings: asset.holdings.toString() })}
+                                      className="p-1.5 rounded-md hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+                                      title="Edit holdings"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDelete(asset.id, asset.name)}
+                                      className="p-1.5 rounded-md hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--red)] transition-colors"
+                                      title="Remove holding"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
                                   </div>
                                 </td>
                               </tr>

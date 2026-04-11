@@ -38,6 +38,7 @@ export async function GET(req: Request) {
         currency: 'USD',
         price: priceData[topResult.id]?.usd || 0,
         change24h: priceData[topResult.id]?.usd_24h_change || 0,
+        logo: topResult.thumb || topResult.large || null,
         type: 'CRYPTO',
       });
     } else {
@@ -46,12 +47,17 @@ export async function GET(req: Request) {
       try {
         const quote: any = await yf.quote(query.toUpperCase());
         if (quote && quote.regularMarketPrice) {
+          // Clearbit logo by domain from Yahoo Finance website
+          const domain = (quote.website || '').replace(/https?:\/\/(www\.)?/, '').split('/')[0];
+          const logo = domain ? `https://logo.clearbit.com/${domain}` : null;
           return NextResponse.json({
             symbol: quote.symbol,
             name: quote.shortName || quote.longName || quote.symbol,
             currency: quote.currency || 'USD',
             price: quote.regularMarketPrice || 0,
             change24h: quote.regularMarketChangePercent || 0,
+            logo,
+            exchange: quote.fullExchangeName || quote.exchange || null,
             type,
           });
         }
@@ -68,12 +74,16 @@ export async function GET(req: Request) {
       }
 
       const quote: any = await yf.quote(topRes.symbol);
+      const domain = (quote.website || '').replace(/https?:\/\/(www\.)?/, '').split('/')[0];
+      const logo = domain ? `https://logo.clearbit.com/${domain}` : null;
       return NextResponse.json({
         symbol: quote.symbol,
         name: quote.shortName || quote.longName || topRes.longname || topRes.shortname || quote.symbol,
         currency: quote.currency || 'USD',
         price: quote.regularMarketPrice || 0,
         change24h: quote.regularMarketChangePercent || 0,
+        logo,
+        exchange: quote.fullExchangeName || quote.exchange || null,
         type,
       });
     }
