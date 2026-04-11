@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import { usePortfolioStore } from "@/store/usePortfolioStore";
 import {
   HandCoins, CheckCircle2, XCircle, Search,
-  Pencil, Trash2, Check, X, Loader2, TrendingUp, TrendingDown, ChevronDown
+  Pencil, Trash2, Check, X, Loader2, TrendingUp, TrendingDown
 } from "lucide-react";
+import { AssetLogo } from "./AssetLogo";
 
 const MANUAL_TYPES = ['CASH', 'REAL_ESTATE', 'GOLD', 'OTHER'];
 
@@ -15,6 +16,8 @@ interface AssetData {
   currency: string;
   price: number;
   change24h: number;
+  logo?: string | null;
+  exchange?: string | null;
 }
 
 interface EditState {
@@ -315,15 +318,19 @@ export function HoldingsInput() {
                   className="w-full flex items-center justify-between px-4 py-3 hover:bg-violet-600/20 transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-3 text-left">
-                    <div className="w-8 h-8 rounded-lg bg-violet-600/20 flex items-center justify-center text-xs font-bold text-violet-300 shrink-0">
-                      {searchState.data.symbol.slice(0, 2).toUpperCase()}
-                    </div>
+                    <AssetLogo
+                      symbol={searchState.data.symbol}
+                      logo={searchState.data.logo}
+                      type={type}
+                      size={34}
+                    />
                     <div>
-                      <p className="text-slate-100 font-semibold text-sm group-hover:text-white">
+                      <p className="text-[var(--text-primary)] font-semibold text-sm group-hover:text-white">
                         {searchState.data.name}
                       </p>
-                      <p className="text-slate-500 text-xs">
-                        {searchState.data.symbol.toUpperCase()} · Live data
+                      <p className="text-[var(--text-muted)] text-xs">
+                        {searchState.data.symbol.toUpperCase()}
+                        {searchState.data.exchange ? ` · ${searchState.data.exchange}` : " · Live"}
                       </p>
                     </div>
                   </div>
@@ -430,9 +437,11 @@ export function HoldingsInput() {
                 key={asset.id}
                 className="flex items-center gap-2 bg-slate-900/60 px-3 py-2.5 rounded-xl border border-slate-700/30"
               >
-                <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-400 shrink-0">
-                  {asset.symbol.slice(0, 2).toUpperCase()}
-                </div>
+                <AssetLogo
+                  symbol={asset.symbol}
+                  type={asset.type}
+                  size={28}
+                />
                 <div className="flex-1 min-w-0">
                   <p className="text-slate-100 font-semibold text-sm uppercase truncate">{asset.symbol}</p>
                   <p className="text-slate-500 text-xs truncate">{asset.name}</p>

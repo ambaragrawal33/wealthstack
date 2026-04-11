@@ -377,7 +377,7 @@ export function Dashboard() {
                               <tr key={asset.id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-surface)] transition-colors group">
                                 <td className="py-3 pr-4">
                                   <div className="flex items-center gap-2.5">
-                                    <AssetLogo symbol={asset.symbol} size={28} />
+                                    <AssetLogo symbol={asset.symbol} type={asset.type} size={28} />
                                     <div className="min-w-0">
                                       <p className="font-semibold text-[var(--text-primary)] truncate text-xs">{asset.symbol.toUpperCase()}</p>
                                       <p className="text-[10px] text-[var(--text-muted)] truncate max-w-[100px]">{asset.name}</p>
