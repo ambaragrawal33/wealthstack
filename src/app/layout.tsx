@@ -6,8 +6,8 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Wealthstack — Total Net Worth Tracker",
-  description: "Professional portfolio tracker for stocks, crypto, mutual funds, and more.",
+  title: "Folio — Total Net Worth Tracker",
+  description: "Folio — Track every asset in one place. Stocks, crypto, mutual funds, and more.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

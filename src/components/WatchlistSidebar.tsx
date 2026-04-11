@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Plus, Loader2, TrendingUp, TrendingDown, Search, Bookmark, Trash2 } from "lucide-react";
 
-const WATCHLIST_KEY = "wealthstack_watchlist";
+const WATCHLIST_KEY = "folio_watchlist";
 
 interface WatchItem {
   symbol: string;

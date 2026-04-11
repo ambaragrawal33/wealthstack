@@ -368,7 +368,7 @@ export function Dashboard() {
         {tab === "SETTINGS" && (
           <div className="p-6 max-w-lg">
             <h2 className="text-sm font-semibold mb-1" style={{ color: "var(--text-primary)" }}>Settings</h2>
-            <p className="text-xs mb-6" style={{ color: "var(--text-muted)" }}>Configure your Wealthstack preferences.</p>
+            <p className="text-xs mb-6" style={{ color: "var(--text-muted)" }}>Configure your Folio preferences.</p>
             <div className="space-y-3">
 
               {/* Theme toggle */}
@@ -453,7 +453,7 @@ export function Dashboard() {
                     const blob = new Blob([csv], { type: "text/csv" });
                     const url = URL.createObjectURL(blob);
                     const link = document.createElement("a");
-                    link.href = url; link.download = "wealthstack_portfolio.csv"; link.click();
+                    link.href = url; link.download = "folio_portfolio.csv"; link.click();
                     URL.revokeObjectURL(url);
                   } catch {}
                 }}
