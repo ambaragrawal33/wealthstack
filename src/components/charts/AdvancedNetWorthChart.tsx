@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { usePortfolioStore } from "@/store/usePortfolioStore";
+import { DBAsset } from "@/store/usePortfolioStore";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -9,6 +10,8 @@ import { format, subDays, eachWeekOfInterval } from "date-fns";
 import { TrendingUp, TrendingDown, RefreshCw, Loader2 } from "lucide-react";
 
 type Range = "1M" | "3M" | "6M" | "1Y";
+type Currency = "INR" | "USD";
+
 const RANGES: { label: Range; days: number }[] = [
   { label: "1M", days: 30 },
   { label: "3M", days: 90 },
@@ -16,40 +19,53 @@ const RANGES: { label: Range; days: number }[] = [
   { label: "1Y", days: 365 },
 ];
 
-function formatINR(val: number): string {
-  if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)}Cr`;
-  if (val >= 100000) return `₹${(val / 100000).toFixed(2)}L`;
-  if (val >= 1000) return `₹${(val / 1000).toFixed(1)}K`;
+function fmtVal(val: number, currency: Currency): string {
+  if (currency === "USD") {
+    if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(2)}M`;
+    if (val >= 1_000) return `$${(val / 1_000).toFixed(1)}K`;
+    return `$${val.toFixed(2)}`;
+  }
+  if (val >= 10_000_000) return `₹${(val / 10_000_000).toFixed(2)}Cr`;
+  if (val >= 100_000) return `₹${(val / 100_000).toFixed(2)}L`;
+  if (val >= 1_000) return `₹${(val / 1_000).toFixed(1)}K`;
   return `₹${val.toFixed(0)}`;
 }
 
-// Find nearest price in a sorted price array
 function nearestPrice(
-  priceArr: { date: Date | string; price: number }[],
+  arr: { date: Date | string; price: number }[],
   targetMs: number
 ): number | null {
-  if (!priceArr?.length) return null;
-  let best = priceArr[0].price;
+  if (!arr?.length) return null;
+  let best = arr[0].price;
   let bestDiff = Infinity;
-  for (const p of priceArr) {
+  for (const p of arr) {
     const diff = Math.abs(new Date(p.date).getTime() - targetMs);
     if (diff < bestDiff) { bestDiff = diff; best = p.price; }
   }
   return best;
 }
 
-export function AdvancedNetWorthChart() {
+interface Props {
+  /** Only compute net worth for these assets (for segment tabs). Defaults to all. */
+  assets?: DBAsset[];
+  /** Display currency — defaults to INR */
+  displayCurrency?: Currency;
+}
+
+export function AdvancedNetWorthChart({ assets: assetsProp, displayCurrency = "INR" }: Props) {
   const dbAssets = usePortfolioStore((s) => s.dbAssets);
   const prices = usePortfolioStore((s) => s.prices);
   const usdInrRate = usePortfolioStore((s) => s.usdInrRate) ?? 84;
   const history = usePortfolioStore((s) => s.history) as Record<string, any>;
   const setHistoryData = usePortfolioStore((s) => s.setHistoryData);
 
+  // Use provided assets or fall back to all
+  const assets = assetsProp ?? dbAssets;
+
   const [loading, setLoading] = useState(false);
   const [range, setRange] = useState<Range>("1Y");
-  const [fetched, setFetched] = useState(false);
 
-  const assetKey = dbAssets.map(a => a.id).join(",");
+  const assetKey = dbAssets.map(a => a.id).join(","); // Fetch for ALL assets always
 
   const doFetch = useCallback(async () => {
     if (!dbAssets.length) return;
@@ -59,18 +75,12 @@ export function AdvancedNetWorthChart() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          assets: dbAssets.map(a => ({
-            symbol: a.symbol,
-            type: a.type,
-            currency: a.currency,
-            holdings: a.holdings,
-          })),
+          assets: dbAssets.map(a => ({ symbol: a.symbol, type: a.type, currency: a.currency, holdings: a.holdings })),
         }),
       });
       if (!res.ok) throw new Error("API error");
       const data = await res.json();
       setHistoryData(data);
-      setFetched(true);
     } catch (e) {
       console.error("History fetch failed:", e);
     } finally {
@@ -78,75 +88,73 @@ export function AdvancedNetWorthChart() {
     }
   }, [assetKey]);
 
-  useEffect(() => {
-    doFetch();
-  }, [assetKey]);
+  useEffect(() => { doFetch(); }, [assetKey]);
 
-  // Build the net worth timeseries
+  // Build the net worth timeseries for the given assets + displayCurrency
   const chartData = useMemo(() => {
-    if (!dbAssets.length) return [];
+    if (!assets.length) return [];
 
     const days = RANGES.find(r => r.label === range)?.days ?? 365;
     const now = new Date();
     const start = subDays(now, days);
     const weeks = eachWeekOfInterval({ start, end: now });
-
     const inrHistory: any[] = history?.["INR=X"]?.prices ?? [];
 
     const points = weeks.map(weekDate => {
       const targetMs = weekDate.getTime();
       const inrRate = nearestPrice(inrHistory, targetMs) ?? usdInrRate;
-      let totalINR = 0;
+      let total = 0;
 
-      for (const asset of dbAssets) {
+      for (const asset of assets) {
         if (!asset.holdings || asset.holdings <= 0) continue;
 
         const assetHist = history?.[asset.symbol]?.prices;
-        const assetCurrency = history?.[asset.symbol]?.currency ?? asset.currency ?? "USD";
-
+        const histCurrency = history?.[asset.symbol]?.currency ?? asset.currency ?? "USD";
         let price: number | null = nearestPrice(assetHist, targetMs);
 
-        // Fallback to live price if no history
+        // Fallback to live price
         if (price == null) {
           const live = (prices as any)?.[asset.symbol];
           price = live?.nativePrice ?? live?.usd ?? asset.averagePrice ?? 0;
         }
 
-        // Convert to INR
         const safePrice = price ?? 0;
-        const valueINR = assetCurrency === "INR" || asset.currency === "INR"
+
+        // First compute in INR
+        const valueINR = (histCurrency === "INR" || asset.currency === "INR")
           ? asset.holdings * safePrice
           : asset.holdings * safePrice * inrRate;
 
-        totalINR += valueINR;
+        // Then convert to display currency
+        const displayVal = displayCurrency === "USD" ? valueINR / inrRate : valueINR;
+        total += displayVal;
       }
 
-      return {
-        date: weekDate.toISOString().split("T")[0],
-        value: Math.round(totalINR),
-      };
+      return { date: weekDate.toISOString().split("T")[0], value: Math.round(total) };
     });
 
     return points.filter(p => p.value > 0);
-  }, [history, dbAssets, prices, usdInrRate, range]);
+  }, [history, assets, prices, usdInrRate, range, displayCurrency]);
 
-  // Current net worth from live prices
+  // Live net worth from live prices
   const currentNetWorth = useMemo(() => {
     let total = 0;
-    for (const asset of dbAssets) {
+    for (const asset of assets) {
       if (!asset.holdings) continue;
       const live = (prices as any)?.[asset.symbol];
       const price = live?.nativePrice ?? live?.usd ?? asset.averagePrice ?? 0;
-      const currency = asset.currency ?? "USD";
-      total += currency === "INR" ? asset.holdings * price : asset.holdings * price * (usdInrRate ?? 84);
+      const valueINR = asset.currency === "INR"
+        ? asset.holdings * price
+        : asset.holdings * price * (usdInrRate ?? 84);
+      total += displayCurrency === "USD" ? valueINR / usdInrRate : valueINR;
     }
     return Math.round(total);
-  }, [dbAssets, prices, usdInrRate]);
+  }, [assets, prices, usdInrRate, displayCurrency]);
 
-  if (dbAssets.length === 0) {
+  if (!assets.length) {
     return (
-      <div className="h-[350px] flex items-center justify-center text-slate-500 text-sm">
-        Add assets to see your net worth chart
+      <div className="h-[260px] flex items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
+        No holdings in this segment
       </div>
     );
   }
@@ -156,34 +164,40 @@ export function AdvancedNetWorthChart() {
   const change = endVal - startVal;
   const changePct = startVal > 0 ? (change / startVal) * 100 : 0;
   const isUp = change >= 0;
-  const color = isUp ? "#10b981" : "#ef4444";
+  const color = isUp ? "var(--green)" : "var(--red)";
+  const gradId = `chartGrad_${displayCurrency}`;
 
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Total Net Worth</p>
-          <p className="text-3xl font-bold text-white tabular-nums">
-            {formatINR(currentNetWorth)}
+          <p className="text-xs uppercase tracking-wider mb-1 font-medium" style={{ color: "var(--text-muted)" }}>
+            Value
+          </p>
+          <p className="text-2xl font-bold tabular" style={{ color: "var(--text-primary)" }}>
+            {fmtVal(currentNetWorth, displayCurrency)}
           </p>
           {chartData.length > 1 && (
-            <div className={`flex items-center gap-1 mt-1 text-sm font-medium ${isUp ? "text-emerald-400" : "text-red-400"}`}>
-              {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-              {isUp ? "+" : ""}{formatINR(change)} ({isUp ? "+" : ""}{changePct.toFixed(2)}%) · {range}
+            <div className={`flex items-center gap-1 mt-1 text-xs font-medium`}
+              style={{ color: isUp ? "var(--green)" : "var(--red)" }}>
+              {isUp ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              {isUp ? "+" : ""}{fmtVal(change, displayCurrency)} ({isUp ? "+" : ""}{changePct.toFixed(2)}%) · {range}
             </div>
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex gap-1 bg-slate-900/70 rounded-lg p-1">
+          <div className="flex gap-1 rounded-lg p-1" style={{ backgroundColor: "var(--bg-elevated)" }}>
             {RANGES.map(r => (
               <button
                 key={r.label}
                 onClick={() => setRange(r.label)}
-                className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
-                  range === r.label ? "bg-violet-600 text-white" : "text-slate-400 hover:text-slate-200"
-                }`}
+                className="px-2.5 py-1 rounded-md text-xs font-semibold transition-colors"
+                style={{
+                  backgroundColor: range === r.label ? "var(--accent)" : "transparent",
+                  color: range === r.label ? "#fff" : "var(--text-muted)",
+                }}
               >
                 {r.label}
               </button>
@@ -192,33 +206,35 @@ export function AdvancedNetWorthChart() {
           <button
             onClick={doFetch}
             disabled={loading}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50"
+            className="p-1.5 rounded-lg border transition-colors disabled:opacity-50"
+            style={{ backgroundColor: "var(--bg-elevated)", borderColor: "var(--border)" }}
             title="Refresh"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+              style={{ color: "var(--text-muted)" }} />
           </button>
         </div>
       </div>
 
-      {/* Chart area */}
+      {/* Chart */}
       {loading && chartData.length === 0 ? (
-        <div className="h-[260px] flex flex-col items-center justify-center gap-2 text-slate-500">
-          <Loader2 className="w-6 h-6 animate-spin text-violet-400" />
-          <p className="text-sm">Fetching 1 year of market history...</p>
+        <div className="h-[220px] flex flex-col items-center justify-center gap-2" style={{ color: "var(--text-muted)" }}>
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent)" }} />
+          <p className="text-xs">Fetching historical prices...</p>
         </div>
       ) : chartData.length < 2 ? (
-        <div className="h-[260px] flex flex-col items-center justify-center gap-1 text-slate-500">
+        <div className="h-[220px] flex flex-col items-center justify-center gap-1" style={{ color: "var(--text-muted)" }}>
           <p className="text-sm">Loading chart data...</p>
-          <p className="text-xs text-slate-600">Current value: <span className="text-slate-300">{formatINR(currentNetWorth)}</span></p>
+          <p className="text-xs opacity-60">Current: <span style={{ color: "var(--text-secondary)" }}>{fmtVal(currentNetWorth, displayCurrency)}</span></p>
         </div>
       ) : (
-        <div className="h-[260px]">
+        <div className="h-[220px]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 5, right: 4, left: 0, bottom: 0 }}>
               <defs>
-                <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={color} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={color} stopOpacity={0} />
+                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={isUp ? "#22c55e" : "#ef4444"} stopOpacity={0.25} />
+                  <stop offset="95%" stopColor={isUp ? "#22c55e" : "#ef4444"} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis
@@ -227,14 +243,14 @@ export function AdvancedNetWorthChart() {
                   try { return format(new Date(d), range === "1M" ? "d MMM" : "MMM yy"); }
                   catch { return d; }
                 }}
-                tick={{ fill: "#64748b", fontSize: 11 }}
+                tick={{ fill: "var(--text-muted)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
                 minTickGap={40}
               />
               <YAxis
-                tickFormatter={v => formatINR(v)}
-                tick={{ fill: "#64748b", fontSize: 11 }}
+                tickFormatter={v => fmtVal(v, displayCurrency)}
+                tick={{ fill: "var(--text-muted)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
                 width={72}
@@ -247,13 +263,16 @@ export function AdvancedNetWorthChart() {
                   const diff = val - startVal;
                   const pct = startVal > 0 ? (diff / startVal) * 100 : 0;
                   return (
-                    <div className="bg-slate-900 border border-slate-700 px-4 py-3 rounded-xl shadow-2xl">
-                      <p className="text-slate-400 text-xs mb-1">
+                    <div className="border px-4 py-3 rounded-xl shadow-2xl"
+                      style={{ backgroundColor: "var(--bg-elevated)", borderColor: "var(--border)" }}>
+                      <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
                         {format(new Date(label as string), "MMM d, yyyy")}
                       </p>
-                      <p className="text-white font-bold text-lg">{formatINR(val)}</p>
-                      <p className={`text-xs mt-0.5 font-medium ${diff >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                        {diff >= 0 ? "+" : ""}{formatINR(diff)} ({pct.toFixed(2)}%)
+                      <p className="font-bold text-base" style={{ color: "var(--text-primary)" }}>
+                        {fmtVal(val, displayCurrency)}
+                      </p>
+                      <p className="text-xs mt-0.5 font-medium" style={{ color: diff >= 0 ? "var(--green)" : "var(--red)" }}>
+                        {diff >= 0 ? "+" : ""}{fmtVal(diff, displayCurrency)} ({pct.toFixed(2)}%)
                       </p>
                     </div>
                   );
@@ -262,11 +281,11 @@ export function AdvancedNetWorthChart() {
               <Area
                 type="monotone"
                 dataKey="value"
-                stroke={color}
-                strokeWidth={2}
-                fill="url(#chartGrad)"
+                stroke={isUp ? "#22c55e" : "#ef4444"}
+                strokeWidth={1.8}
+                fill={`url(#${gradId})`}
                 dot={false}
-                activeDot={{ r: 5, fill: color, strokeWidth: 0 }}
+                activeDot={{ r: 4, fill: isUp ? "#22c55e" : "#ef4444", strokeWidth: 0 }}
               />
             </AreaChart>
           </ResponsiveContainer>
